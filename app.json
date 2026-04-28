@@ -1,35 +1,30 @@
-import * as React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { View, Text, Button } from 'react-native';
-
-// Geçici Ekran Bileşenleri (Daha sonra kendi dosyalarına taşıyacağız)
-function HomeScreen({ navigation }) {
-  return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <Text>Clicker Oyunu Ana Menü</Text>
-      <Button title="Oyuna Başla" onPress={() => navigation.navigate('Game')} />
-    </View>
-  );
-}
-
-function GameScreen() {
-  return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <Text>Oyun Ekranı (Tıklama alanı buraya gelecek)</Text>
-    </View>
-  );
-}
-
-const Stack = createNativeStackNavigator();
-
-export default function App() {
-  return (
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName="Home">
-        <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'Ana Sayfa' }} />
-        <Stack.Screen name="Game" component={GameScreen} options={{ title: 'Oyun' }} />
-      </Stack.Navigator>
-    </NavigationContainer>
-  );
+{
+  "expo": {
+    "name": "uygulama",
+    "slug": "uygulama",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
 }
