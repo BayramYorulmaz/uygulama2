@@ -1,5 +1,5 @@
 ﻿import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Animated, PanResponder, Dimensions, Alert, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Animated, Dimensions, Pressable } from 'react-native';
 
 const { width, height } = Dimensions.get('window');
 
@@ -7,7 +7,7 @@ const DIRECTIONS = ['UP', 'DOWN', 'LEFT', 'RIGHT'];
 
 export default function GameScreen() {
   const [score, setScore] = useState(0);
-  const scoreRef = useRef(0); // Skorun bayatlamasını engellemek için eklendi
+  const scoreRef = useRef(0);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const isPlayingRef = useRef(false);
@@ -15,16 +15,22 @@ export default function GameScreen() {
   const [isPaused, setIsPaused] = useState(false);
   const isPausedRef = useRef(false);
 
+  const [isGameOver, setIsGameOver] = useState(false);
+  const isGameOverRef = useRef(false);
+
   const [currentDir, setCurrentDir] = useState<string | null>(null);
   const currentDirRef = useRef<string | null>(null);
 
   const centerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // EŞZAMANLI GÜNCELLEYİCİLER: Hem state'i hem de arka plandaki Ref'i aynı salisede günceller (Gecikmeyi sıfırlar)
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+
   const updateScore = (val: number) => { setScore(val); scoreRef.current = val; };
   const setGamePlaying = (val: boolean) => { setIsPlaying(val); isPlayingRef.current = val; };
   const setGamePaused = (val: boolean) => { setIsPaused(val); isPausedRef.current = val; };
-  const setDirection = (val: string) => { setCurrentDir(val); currentDirRef.current = val; };
+  const setGameOverState = (val: boolean) => { setIsGameOver(val); isGameOverRef.current = val; };
+  const setDirection = (val: string | null) => { setCurrentDir(val); currentDirRef.current = val; };
 
   const arrowPos = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const currentPosRef = useRef({ x: 0, y: 0 });
@@ -36,51 +42,28 @@ export default function GameScreen() {
     return () => arrowPos.removeListener(listenerId);
   }, [arrowPos]);
 
-  // Parmak hareketini işleyen asıl fonksiyon
-  const handleGesture = (evt: any, gestureState: any) => {
-    // Sadece ref'leri okuyoruz ki eski turdan kalan bilgilerle çalışmasın
-    if (!isPlayingRef.current || isPausedRef.current) return;
-
-    const { dx, dy } = gestureState;
-    let swipeDir = null;
-
-    if (Math.abs(dx) > Math.abs(dy)) {
-      if (Math.abs(dx) > 15) swipeDir = dx > 0 ? 'RIGHT' : 'LEFT';
-    } else {
-      if (Math.abs(dy) > 15) swipeDir = dy > 0 ? 'DOWN' : 'UP';
-    }
-
-    if (swipeDir) handleSwipe(swipeDir);
-  };
-
-  // PanResponder'ın her zaman "handleGesture" fonksiyonunun EN YENİ halini çağırması için bir köprü
-  const handleGestureRef = useRef(handleGesture);
-  handleGestureRef.current = handleGesture;
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (evt, gestureState) => {
-        return Math.abs(gestureState.dx) > 10 || Math.abs(gestureState.dy) > 10;
-      },
-      // Köprü üzerinden fonksiyonu çağırıyoruz (Bayat veriye son!)
-      onPanResponderRelease: (e, gs) => handleGestureRef.current(e, gs),
-      onPanResponderTerminate: (e, gs) => handleGestureRef.current(e, gs),
-    })
-  ).current;
-
   const startGame = () => {
-    // Eski turdan kalan hayalet sayaçları ve animasyonları GÜÇLÜCE durduruyoruz
     if (centerTimeoutRef.current) {
       clearTimeout(centerTimeoutRef.current);
       centerTimeoutRef.current = null;
     }
+
     arrowPos.stopAnimation();
-    
-    updateScore(0);
-    setGamePlaying(true);
+    arrowPos.setValue({ x: 0, y: 0 });
+    currentPosRef.current = { x: 0, y: 0 };
+
+    // NOT: Eğer oyuncu yandığında skorunun SIFIRLANMASINI İSTEMİYORSAN, alttaki satırı silebilirsin.
+    updateScore(0); 
+
+    setDirection(null);
     setGamePaused(false);
-    spawnArrow();
+    setGameOverState(false); 
+    
+    setGamePlaying(true);
+    
+    setTimeout(() => {
+      spawnArrow();
+    }, 50);
   };
 
   const animateToCenter = (duration: number) => {
@@ -118,6 +101,8 @@ export default function GameScreen() {
   };
 
   const handleSwipe = (swipeDir: string) => {
+    if (!isPlayingRef.current || isPausedRef.current || isGameOverRef.current) return;
+
     const { x, y } = currentPosRef.current;
     const distance = Math.sqrt(Math.pow(x, 2) + Math.pow(y, 2));
 
@@ -165,12 +150,10 @@ export default function GameScreen() {
       clearTimeout(centerTimeoutRef.current);
       centerTimeoutRef.current = null;
     }
-    arrowPos.stopAnimation(); // Kaybetme anında ne olursa olsun oku dondur
+    arrowPos.stopAnimation(); 
     setGamePlaying(false);
     setGamePaused(false);
-    
-    // Dikkat: State yerine direkt Ref okuyoruz ki yandığımızda gösterilen skor kesinlikle doğru olsun!
-    Alert.alert("Oyun Bitti!", `Skorun: ${scoreRef.current}`, [{ text: "Tekrar Oyna", onPress: startGame }]);
+    setGameOverState(true); 
   };
 
   const getArrowSymbol = (dir: string | null) => {
@@ -183,17 +166,40 @@ export default function GameScreen() {
     }
   };
 
+  const onTouchStart = (e: any) => {
+    touchStartX.current = e.nativeEvent.pageX;
+    touchStartY.current = e.nativeEvent.pageY;
+  };
+
+  const onTouchEnd = (e: any) => {
+    if (!isPlayingRef.current || isPausedRef.current || isGameOverRef.current) return;
+
+    const touchEndX = e.nativeEvent.pageX;
+    const touchEndY = e.nativeEvent.pageY;
+
+    const dx = touchEndX - touchStartX.current;
+    const dy = touchEndY - touchStartY.current;
+
+    let swipeDir = null;
+
+    if (Math.abs(dx) > Math.abs(dy)) {
+      if (Math.abs(dx) > 15) swipeDir = dx > 0 ? 'RIGHT' : 'LEFT';
+    } else {
+      if (Math.abs(dy) > 15) swipeDir = dy > 0 ? 'DOWN' : 'UP';
+    }
+
+    if (swipeDir) handleSwipe(swipeDir);
+  };
+
   return (
-    <View style={styles.container} {...panResponder.panHandlers}>
-      {isPlaying && (
-        <Pressable style={styles.pauseButton} onPress={togglePause}>
-          <Text style={styles.pauseButtonText}>{isPaused ? '▶️ Devam Et' : '⏸️ Durdur'}</Text>
-        </Pressable>
-      )}
-
-      <Text style={styles.scoreText}>Skor: {score}</Text>
-
-      {!isPlaying ? (
+    <View 
+      style={styles.container} 
+      onTouchStart={onTouchStart} 
+      onTouchEnd={onTouchEnd}
+    >
+      
+      {/* 1. DURUM: OYUN HİÇ BAŞLAMADIYSA ANA MENÜYÜ GÖSTER */}
+      {!isPlaying && !isGameOver && (
         <View style={styles.menu}>
           <Text style={styles.title}>Refleks Oyunu</Text>
           <Text style={styles.instruction}>Ok ortadaki hedefe geldiğinde,{'\n'}okun gösterdiği yöne doğru ekranda kaydır!</Text>
@@ -201,20 +207,53 @@ export default function GameScreen() {
             <Text style={styles.buttonText}>Oyuna Başla</Text>
           </Pressable>
         </View>
-      ) : (
+      )}
+
+      {/* 2. DURUM: OYUN OYNANIYORKEN VEYA OYUN BİTTİĞİNDE OYUN ALANINI GÖSTER */}
+      {(isPlaying || isGameOver) && (
         <>
+          {/* Oyun arka planı hep sabit kalır */}
           <View style={styles.targetZone} pointerEvents="none" />
 
           <Animated.View 
             pointerEvents="none" 
-            style={[styles.arrowContainer, { transform: arrowPos.getTranslateTransform(), opacity: isPaused ? 0 : 1 }]}
+            style={[
+              styles.arrowContainer, 
+              // Ok sadece oyun bilerek duraklatıldığında gizlenir, yandığında donup kalır
+              { transform: arrowPos.getTranslateTransform(), opacity: (isPaused && !isGameOver) ? 0 : 1 }
+            ]}
           >
             <Text style={styles.arrowText}>{getArrowSymbol(currentDir)}</Text>
           </Animated.View>
 
-          {isPaused && (
+          <Text style={styles.scoreText}>Skor: {score}</Text>
+
+          {/* Oyuncu yanmadıysa durdurma butonunu göster */}
+          {!isGameOver && (
+            <Pressable style={styles.pauseButton} onPress={togglePause}>
+              <Text style={styles.pauseButtonText}>{isPaused ? '▶️ Devam Et' : '⏸️ Durdur'}</Text>
+            </Pressable>
+          )}
+
+          {/* A. DURAKLATMA EKRANI (OVERLAY) */}
+          {isPaused && !isGameOver && (
             <View style={styles.pausedOverlay} pointerEvents="none">
               <Text style={styles.pausedText}>DURAKLATILDI</Text>
+            </View>
+          )}
+
+          {/* B. OYUN BİTTİ EKRANI (DURDURMA OVERLAY'İ İLE AYNI TASARIM) */}
+          {isGameOver && (
+            <View style={styles.pausedOverlay}>
+              <View style={styles.menu}>
+                <Text style={[styles.title, { color: '#f87171' }]}>Oyun Bitti!</Text>
+                <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#fff', marginBottom: 30 }}>
+                  Skorun: {score}
+                </Text>
+                <Pressable style={styles.button} onPress={startGame}>
+                  <Text style={styles.buttonText}>Tekrar Oyna</Text>
+                </Pressable>
+              </View>
             </View>
           )}
         </>
@@ -254,15 +293,17 @@ const styles = StyleSheet.create({
   },
   menu: {
     alignItems: 'center',
-    padding: 20,
+    padding: 30,
     backgroundColor: 'rgba(255,255,255,0.1)',
     borderRadius: 15,
+    width: '80%',
+    zIndex: 20, 
   },
   title: {
     fontSize: 32,
     fontWeight: 'bold',
     color: '#4ade80',
-    marginBottom: 10,
+    marginBottom: 15,
   },
   instruction: {
     color: '#ccc',
@@ -277,6 +318,8 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     borderRadius: 25,
     elevation: 3, 
+    width: '100%',
+    alignItems: 'center',
   },
   buttonText: {
     fontSize: 18,
@@ -304,7 +347,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: '100%',
     height: '100%',
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.7)', // Arka planın karanlığını biraz artırdık
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 5,

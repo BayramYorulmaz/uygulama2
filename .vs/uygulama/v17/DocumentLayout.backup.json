@@ -36,7 +36,7 @@
               "RelativeDocumentMoniker": "app\\(tabs)\\explore.tsx",
               "ToolTip": "C:\\Users\\BayramYorulmaz\\Desktop\\canHoca\\uygulama\\app\\(tabs)\\explore.tsx",
               "RelativeToolTip": "app\\(tabs)\\explore.tsx",
-              "ViewState": "AgIAAEYBAAAAAAAAAAAAwGgBAAADAAAAAAAAAA==",
+              "ViewState": "AgIAALoAAAAAAAAAAAAAAMgAAAArAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
               "WhenOpened": "2026-04-28T06:57:01.866Z",
               "EditorCaption": ""
@@ -51,7 +51,8 @@
               "RelativeToolTip": "app\\modal.tsx",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAB0AAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
-              "WhenOpened": "2026-04-28T06:51:19.068Z"
+              "WhenOpened": "2026-04-28T06:51:19.068Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
@@ -63,7 +64,8 @@
               "RelativeToolTip": "app.json",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAABwAAAADAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
-              "WhenOpened": "2026-04-28T06:43:44.464Z"
+              "WhenOpened": "2026-04-28T06:43:44.464Z",
+              "EditorCaption": ""
             }
           ]
         },
