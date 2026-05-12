@@ -1,11 +1,15 @@
 ﻿import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Animated, Dimensions, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Animated, Dimensions, Pressable, Modal, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Keyboard } from 'react-native';
+import { useRouter } from 'expo-router'; // YÖNLENDİRME İÇİN EKLENDİ
+import { BACKEND_BASE_URL } from '../../constants/api';
 
 const { width, height } = Dimensions.get('window');
 
 const DIRECTIONS = ['UP', 'DOWN', 'LEFT', 'RIGHT'];
 
 export default function GameScreen() {
+  const router = useRouter(); // ROUTER TANIMLANDI
+
   const [score, setScore] = useState(0);
   const scoreRef = useRef(0);
 
@@ -26,6 +30,12 @@ export default function GameScreen() {
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
 
+  // Skor kaydetme state'i
+  const [modalVisible, setModalVisible] = useState(false);
+  const [playerName, setPlayerName] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // STATE VE REF SENKRONİZASYON FONKSİYONLARI
   const updateScore = (val: number) => { setScore(val); scoreRef.current = val; };
   const setGamePlaying = (val: boolean) => { setIsPlaying(val); isPlayingRef.current = val; };
   const setGamePaused = (val: boolean) => { setIsPaused(val); isPausedRef.current = val; };
@@ -43,6 +53,7 @@ export default function GameScreen() {
   }, [arrowPos]);
 
   const startGame = () => {
+    console.log('🎮 Oyun başlıyor...');
     if (centerTimeoutRef.current) {
       clearTimeout(centerTimeoutRef.current);
       centerTimeoutRef.current = null;
@@ -52,15 +63,12 @@ export default function GameScreen() {
     arrowPos.setValue({ x: 0, y: 0 });
     currentPosRef.current = { x: 0, y: 0 };
 
-    // NOT: Eğer oyuncu yandığında skorunun SIFIRLANMASINI İSTEMİYORSAN, alttaki satırı silebilirsin.
-    updateScore(0); 
-
+    updateScore(0);
     setDirection(null);
     setGamePaused(false);
-    setGameOverState(false); 
-    
+    setGameOverState(false);
     setGamePlaying(true);
-    
+
     setTimeout(() => {
       spawnArrow();
     }, 50);
@@ -70,14 +78,14 @@ export default function GameScreen() {
     Animated.timing(arrowPos, {
       toValue: { x: 0, y: 0 },
       duration: duration,
-      useNativeDriver: false, 
+      useNativeDriver: false,
     }).start(({ finished }) => {
       if (finished && isPlayingRef.current && !isPausedRef.current) {
         centerTimeoutRef.current = setTimeout(() => {
           if (isPlayingRef.current && !isPausedRef.current) {
             gameOver();
           }
-        }, 500); 
+        }, 500);
       }
     });
   };
@@ -107,15 +115,15 @@ export default function GameScreen() {
     const distance = Math.sqrt(Math.pow(x, 2) + Math.pow(y, 2));
 
     if (distance < 150 && swipeDir === currentDirRef.current) {
-      arrowPos.stopAnimation(); 
-      
+      arrowPos.stopAnimation();
+
       if (centerTimeoutRef.current) {
         clearTimeout(centerTimeoutRef.current);
         centerTimeoutRef.current = null;
       }
 
       updateScore(scoreRef.current + 10);
-      spawnArrow(); 
+      spawnArrow();
     }
   };
 
@@ -132,12 +140,12 @@ export default function GameScreen() {
         const distance = Math.sqrt(Math.pow(x, 2) + Math.pow(y, 2));
         const maxDist = Math.max(width / 2 + 100, height / 2 + 100);
         const remainingDuration = (distance / maxDist) * 1500;
-        animateToCenter(Math.max(remainingDuration, 100)); 
+        animateToCenter(Math.max(remainingDuration, 100));
       }
     } else {
       setGamePaused(true);
       arrowPos.stopAnimation();
-      
+
       if (centerTimeoutRef.current) {
         clearTimeout(centerTimeoutRef.current);
         centerTimeoutRef.current = null;
@@ -146,14 +154,72 @@ export default function GameScreen() {
   };
 
   const gameOver = () => {
+    console.log('🏁 Oyun bitiyor. Score:', scoreRef.current);
     if (centerTimeoutRef.current) {
       clearTimeout(centerTimeoutRef.current);
       centerTimeoutRef.current = null;
     }
-    arrowPos.stopAnimation(); 
+    arrowPos.stopAnimation();
     setGamePlaying(false);
     setGamePaused(false);
-    setGameOverState(true); 
+    setGameOverState(true);
+    setModalVisible(true);
+    console.log('📝 Modal açılıyor...');
+  };
+
+  const submitScore = async () => {
+    if (!playerName.trim()) {
+      Alert.alert('Hata', 'Lütfen oyuncu adınızı girin.');
+      return;
+    }
+
+    Keyboard.dismiss(); 
+    setLoading(true);
+    try {
+      const res = await fetch(`${BACKEND_BASE_URL}/score`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: playerName.trim(),
+          score: scoreRef.current,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Skor kaydedilemedi');
+      }
+
+      console.log('✅ Skor kaydedildi');
+      Alert.alert('Başarılı ✅', `${playerName} adınız ile ${scoreRef.current} puan kaydedildi!`, [
+        {
+          text: 'Tamam',
+          onPress: () => {
+            resetToMenu(); // Yönlendirme fonksiyonu çağrılıyor
+          },
+        },
+      ]);
+    } catch (err: any) {
+      Alert.alert('Hata ❌', err.message || 'Bir hata oluştu');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ANA MENÜYE DÖNÜŞ VE SIFIRLAMA FONKSİYONU
+  const resetToMenu = () => {
+    console.log('🔄 Index dosyasına (Ana Menüye) yönlendiriliyor...');
+    setModalVisible(false);
+    setPlayerName('');
+    
+    // Arka plan state'lerini temizle
+    setGameOverState(false);
+    setGamePlaying(false);
+    setGamePaused(false);
+    setDirection(null);
+    updateScore(0);
+
+    // Expo Router ile doğrudan 'index.tsx' ekranına git
+    router.navigate('/'); 
   };
 
   const getArrowSymbol = (dir: string | null) => {
@@ -192,35 +258,32 @@ export default function GameScreen() {
   };
 
   return (
-    <View 
-      style={styles.container} 
-      onTouchStart={onTouchStart} 
+    <View
+      style={styles.container}
+      onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
-      
-      {/* 1. DURUM: OYUN HİÇ BAŞLAMADIYSA ANA MENÜYÜ GÖSTER */}
+      {/* DURUM 1: OYUN İÇİ BAŞLANGIÇ EKRANI */}
       {!isPlaying && !isGameOver && (
         <View style={styles.menu}>
-          <Text style={styles.title}>Refleks Oyunu</Text>
+          <Text style={styles.title}>🎮 Hazır Mısın?</Text>
           <Text style={styles.instruction}>Ok ortadaki hedefe geldiğinde,{'\n'}okun gösterdiği yöne doğru ekranda kaydır!</Text>
           <Pressable style={styles.button} onPress={startGame}>
-            <Text style={styles.buttonText}>Oyuna Başla</Text>
+            <Text style={styles.buttonText}>Başla!</Text>
           </Pressable>
         </View>
       )}
 
-      {/* 2. DURUM: OYUN OYNANIYORKEN VEYA OYUN BİTTİĞİNDE OYUN ALANINI GÖSTER */}
-      {(isPlaying || isGameOver) && (
+      {/* DURUM 2: OYUN OYNANIYORKEN */}
+      {isPlaying && !isGameOver && (
         <>
-          {/* Oyun arka planı hep sabit kalır */}
           <View style={styles.targetZone} pointerEvents="none" />
 
-          <Animated.View 
-            pointerEvents="none" 
+          <Animated.View
+            pointerEvents="none"
             style={[
-              styles.arrowContainer, 
-              // Ok sadece oyun bilerek duraklatıldığında gizlenir, yandığında donup kalır
-              { transform: arrowPos.getTranslateTransform(), opacity: (isPaused && !isGameOver) ? 0 : 1 }
+              styles.arrowContainer,
+              { transform: arrowPos.getTranslateTransform(), opacity: isPaused ? 0 : 1 }
             ]}
           >
             <Text style={styles.arrowText}>{getArrowSymbol(currentDir)}</Text>
@@ -228,36 +291,65 @@ export default function GameScreen() {
 
           <Text style={styles.scoreText}>Skor: {score}</Text>
 
-          {/* Oyuncu yanmadıysa durdurma butonunu göster */}
-          {!isGameOver && (
-            <Pressable style={styles.pauseButton} onPress={togglePause}>
-              <Text style={styles.pauseButtonText}>{isPaused ? '▶️ Devam Et' : '⏸️ Durdur'}</Text>
-            </Pressable>
-          )}
+          <Pressable style={styles.pauseButton} onPress={togglePause}>
+            <Text style={styles.pauseButtonText}>{isPaused ? '▶️ Devam Et' : '⏸️ Durdur'}</Text>
+          </Pressable>
 
-          {/* A. DURAKLATMA EKRANI (OVERLAY) */}
-          {isPaused && !isGameOver && (
+          {isPaused && (
             <View style={styles.pausedOverlay} pointerEvents="none">
               <Text style={styles.pausedText}>DURAKLATILDI</Text>
             </View>
           )}
+        </>
+      )}
 
-          {/* B. OYUN BİTTİ EKRANI (DURDURMA OVERLAY'İ İLE AYNI TASARIM) */}
-          {isGameOver && (
-            <View style={styles.pausedOverlay}>
-              <View style={styles.menu}>
-                <Text style={[styles.title, { color: '#f87171' }]}>Oyun Bitti!</Text>
-                <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#fff', marginBottom: 30 }}>
-                  Skorun: {score}
-                </Text>
-                <Pressable style={styles.button} onPress={startGame}>
-                  <Text style={styles.buttonText}>Tekrar Oyna</Text>
+      {/* DURUM 3: SKOR KAYDETME MODAL */}
+      <Modal visible={modalVisible} animationType="slide" transparent>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalContainer}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>🏆 Oyun Bitti!</Text>
+              <Text style={styles.finalScore}>Skor: {score}</Text>
+
+              <TextInput
+                placeholder="Oyuncu Adı"
+                value={playerName}
+                onChangeText={setPlayerName}
+                style={styles.input}
+                editable={!loading}
+                placeholderTextColor="#666"
+              />
+
+              <View style={styles.modalButtons}>
+                <Pressable
+                  style={[styles.modalBtn, loading && styles.btnDisabled]}
+                  onPress={submitScore}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#1e1e1e" />
+                  ) : (
+                    <Text style={styles.modalBtnText}>✅ Skoru Kaydet</Text>
+                  )}
+                </Pressable>
+                <Pressable
+                  style={[styles.modalBtn, styles.modalBtnCancel]}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    resetToMenu(); // İptale basıldığında da index'e dönecek
+                  }}
+                  disabled={loading}
+                >
+                  <Text style={styles.modalBtnText}>❌ İptal</Text>
                 </Pressable>
               </View>
             </View>
-          )}
-        </>
-      )}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -297,7 +389,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.1)',
     borderRadius: 15,
     width: '80%',
-    zIndex: 20, 
+    zIndex: 20,
   },
   title: {
     fontSize: 32,
@@ -317,7 +409,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 30,
     paddingVertical: 15,
     borderRadius: 25,
-    elevation: 3, 
+    elevation: 3,
     width: '100%',
     alignItems: 'center',
   },
@@ -334,11 +426,11 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: 'rgba(255, 255, 255, 0.3)',
     borderStyle: 'dashed',
-    zIndex: 1, 
+    zIndex: 1,
   },
   arrowContainer: {
     position: 'absolute',
-    zIndex: 2, 
+    zIndex: 2,
   },
   arrowText: {
     fontSize: 60,
@@ -347,7 +439,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: '100%',
     height: '100%',
-    backgroundColor: 'rgba(0,0,0,0.7)', // Arka planın karanlığını biraz artırdık
+    backgroundColor: 'rgba(0,0,0,0.7)',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 5,
@@ -357,5 +449,78 @@ const styles = StyleSheet.create({
     fontSize: 36,
     fontWeight: '900',
     letterSpacing: 2,
+  },
+
+  // Modal styles
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    backgroundColor: 'rgba(0,0,0,0.8)',
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#2a2a2a',
+    borderRadius: 12,
+    padding: 20,
+    borderWidth: 2,
+    borderColor: '#4ade80',
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    marginBottom: 12,
+    color: '#4ade80',
+    textAlign: 'center',
+  },
+  finalScore: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+
+  input: {
+    borderWidth: 2,
+    borderColor: '#4ade80',
+    padding: 12,
+    marginBottom: 16,
+    borderRadius: 8,
+    fontSize: 16,
+    backgroundColor: '#1e1e1e',
+    color: '#fff',
+  },
+
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  modalBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 8,
+    backgroundColor: '#4ade80',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalBtnCancel: {
+    backgroundColor: '#f87171',
+  },
+  modalBtnText: {
+    color: '#1e1e1e',
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  btnDisabled: {
+    opacity: 0.6,
   },
 });
