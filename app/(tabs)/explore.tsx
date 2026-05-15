@@ -1,14 +1,14 @@
 ﻿import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Animated, Dimensions, Pressable, Modal, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Keyboard } from 'react-native';
-import { useRouter } from 'expo-router'; // YÖNLENDİRME İÇİN EKLENDİ
-import { BACKEND_BASE_URL } from '../../constants/api';
+import { useRouter } from 'expo-router';
+import { supabase } from '../../constants/supabase'; 
 
 const { width, height } = Dimensions.get('window');
 
 const DIRECTIONS = ['UP', 'DOWN', 'LEFT', 'RIGHT'];
 
 export default function GameScreen() {
-  const router = useRouter(); // ROUTER TANIMLANDI
+  const router = useRouter();
 
   const [score, setScore] = useState(0);
   const scoreRef = useRef(0);
@@ -167,6 +167,7 @@ export default function GameScreen() {
     console.log('📝 Modal açılıyor...');
   };
 
+  // ÇAKIŞMA YARATAN ESKİ FONKSİYON SİLİNDİ, SADECE SUPABASE VERSİYONU KALDI
   const submitScore = async () => {
     if (!playerName.trim()) {
       Alert.alert('Hata', 'Lütfen oyuncu adınızı girin.');
@@ -175,18 +176,19 @@ export default function GameScreen() {
 
     Keyboard.dismiss(); 
     setLoading(true);
-    try {
-      const res = await fetch(`${BACKEND_BASE_URL}/score`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: playerName.trim(),
-          score: scoreRef.current,
-        }),
-      });
 
-      if (!res.ok) {
-        throw new Error('Skor kaydedilemedi');
+    try {
+      const { error } = await supabase
+        .from('SkorTablosu')
+        .insert([
+          { 
+            isim: playerName.trim(), 
+            skor: scoreRef.current 
+          }
+        ]);
+
+      if (error) {
+        throw error;
       }
 
       console.log('✅ Skor kaydedildi');
@@ -194,12 +196,12 @@ export default function GameScreen() {
         {
           text: 'Tamam',
           onPress: () => {
-            resetToMenu(); // Yönlendirme fonksiyonu çağrılıyor
+            resetToMenu();
           },
         },
       ]);
     } catch (err: any) {
-      Alert.alert('Hata ❌', err.message || 'Bir hata oluştu');
+      Alert.alert('Hata ❌', err.message || 'Skor kaydedilirken bir hata oluştu');
     } finally {
       setLoading(false);
     }

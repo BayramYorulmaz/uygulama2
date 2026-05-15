@@ -17,10 +17,10 @@ export default function MainMenu() {
           </Pressable>
         </Link>
 
-        <Link href="/modal" asChild>
-          <Pressable style={[styles.button, styles.leaderboardBtn]}>
+            <Link href="/modal" asChild>
+            <Pressable style={StyleSheet.flatten([styles.button, styles.leaderboardBtn])}>
             <Text style={styles.buttonText}>📊 Sıralamayı Gör</Text>
-          </Pressable>
+            </Pressable>
         </Link>
       </View>
     </View>
